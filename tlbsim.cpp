@@ -1,71 +1,24 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <map>
-#include <queue>
 #include <cmath>
+
+#include "lrucache.h"
+
 using namespace std;
 
-class TLB
-{
-    int size;
-    vector<pair<int, int>> tlb;
-
-public:
-    TLB(int cache_size) : size(cache_size)
-    {
-        tlb = vector<pair<int, int>>(size, pair<int, int>(0, 0));
-    }
-
-    void update(int vpn, int pfn)
-    {
-        for (int i=0; i<size-1; i++)
-        {
-            tlb[i] = tlb[i+1];
-        }
-        tlb[size-1] = pair<int, int>(vpn, pfn);
-    }
-
-    int access(int vpn)
-    {
-        int pfn = -1;
-        bool hit = false;
-        for (int i=0; i<size; i++)
-        {
-            if (tlb[i].first == vpn && !hit)
-            {
-                pfn = tlb[i].second;
-                hit = true;
-                continue;
-            }
-            if (hit)
-            {
-                tlb[i-1] = tlb[i];
-            }            
-        }
-        if (hit)
-        {
-            tlb[size-1] = pair<int, int>(vpn, pfn);
-            return pfn;
-        }
-        else
-            return -1;
-    }
-};
-
-
-pair<int, bool> va_to_pa_translation(int va, map<int, int> pageTable, int page_size_bits, TLB& tlb)
+pair<int, bool> va_to_pa_translation(int va, unordered_map<int, int> pageTable, int page_size_bits, LRUCache &tlb)
 {
     int page_size = pow(2, page_size_bits);
     int vpn = va / page_size;
     int page_offset = va % page_size;
-    int pfn = tlb.access(vpn);
+    int pfn = tlb.get(vpn);
 
     if (pfn == -1) 
     {
         // TLB Miss
         pfn = pageTable[vpn];
-        tlb.update(vpn, pfn);
+        tlb.put(vpn, pfn);
         return pair<int, bool>(pfn * page_size + page_offset, false);
     }
 	return pair<int, bool>(pfn * page_size + page_offset, true);
@@ -115,14 +68,14 @@ int main(int argc, char *argv[])
     }
 
     // // MAP VPN to PFN
-    map<int, int> pageTable;
+    unordered_map<int, int> pageTable;
     for (int i=0; i<VPN.size(); i++)
     {
         pageTable[VPN[i]] = PFN[i];
     }
 
     // // translating all virtual addresses
-    TLB tlb(stoi(cache_size));
+    LRUCache tlb(stoi(cache_size));
 
     vector<pair<int, bool>> pa_hit_list;
     int num_hits = 0;
